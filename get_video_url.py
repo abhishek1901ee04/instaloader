@@ -4,6 +4,11 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
+from dotenv import load_dotenv  # 👈 IMPORT THIS
+import pprint  # For pretty-printing the owner info
+
+# 👇 Load the .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # This will allow cross-origin requests
@@ -16,7 +21,14 @@ L = instaloader.Instaloader(
     save_metadata=False,
     compress_json=False
 )
+INSTAGRAM_USERNAME = os.getenv('INSTAGRAM_USERNAME')
+INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 
+print(f"🔑 Username from env: {INSTAGRAM_USERNAME}")
+print(f"🔑 Password from env: {INSTAGRAM_PASSWORD}")
+
+# Continue with login
+L.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
 # Login with credentials!
 L.login(os.getenv('INSTAGRAM_USERNAME'), os.getenv('INSTAGRAM_PASSWORD'))
 
@@ -29,8 +41,6 @@ def get_post_details():
     try:
         shortcode = request.args.get('shortcode')
         media_id = request.args.get('media_id')
-
-        logger.debug(f"Received request with shortcode={shortcode}, media_id={media_id}")
 
         if not shortcode and not media_id:
             logger.warning("Missing shortcode or media_id parameter in request.")
@@ -79,7 +89,23 @@ def get_post_details():
             }), 500
 
         logger.debug(f"Post fetched successfully: shortcode={post.shortcode}, is_video={post.is_video}")
+        # Get owner info properly
+        owner = post.owner_profile
 
+        # New owner info
+        owner_info = {
+            "id": owner.userid,
+            "username": owner.username,
+            "full_name": owner.full_name,
+            "profile_pic_url": owner.profile_pic_url,
+            "biography": owner.biography,
+            "external_url": owner.external_url,
+            "is_private": owner.is_private,
+            "is_verified": owner.is_verified,
+            "followers": owner.followers,
+            "following": owner.followees,
+            "media_count": owner.mediacount,
+        }
         # Assemble data
         data = {
             "shortcode": post.shortcode,
@@ -94,9 +120,10 @@ def get_post_details():
             "timestamp": post.date_utc.isoformat() + "Z" if post.date_utc else None,
             "likes": post.likes,
             "comments": post.comments,
-            "owner_username": post.owner_username,
-            "owner_id": post.owner_id,
-            "location": None  # Default null
+            "post_type": post.typename,
+            "carousel_media": [],  # Default empty list for carousel media
+            "location": None,  # Default null
+            "owner_info": owner_info  # <-- 🚨 add this full owner_info dictionar
         }
 
         partial = False
